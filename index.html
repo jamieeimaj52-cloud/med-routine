@@ -1,0 +1,191 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f8f4f7">
+<title>Med Routine</title>
+<style>
+:root{--bg:#f8f4f7;--card:#fff;--ink:#302a32;--muted:#827783;--accent:#b77aa3;--line:#eee5ed}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px system-ui,sans-serif}
+main{max-width:680px;margin:auto;padding:20px 15px 45px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.logo{font-size:30px;background:#f0dfeb;border-radius:15px;padding:10px}
+h1{font-size:25px;margin:0}h2{font-size:19px;margin:0 0 13px}
+p{margin:5px 0;color:var(--muted);font-size:14px}
+section,.med,.dose{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+.summary{display:flex;justify-content:space-between;align-items:center;background:#f0dfeb;border-radius:15px;padding:15px;margin-bottom:20px}
+.big{font-size:25px;font-weight:750}
+label{display:block;font-size:13px;font-weight:650;margin:11px 0 5px}
+input,select{width:100%;padding:12px;border:1px solid #e3d8e2;border-radius:10px;background:white;color:var(--ink);font:inherit}
+button{border:0;border-radius:11px;padding:11px 14px;font:inherit;font-weight:650;cursor:pointer}
+.primary{background:var(--accent);color:white;width:100%;margin-top:14px}
+.secondary{background:#f3e9f1;color:#64465d}
+.danger{background:#fff0f0;color:#9a4242}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.medhead{display:flex;align-items:center;gap:12px}
+.art{width:65px;height:76px;flex-shrink:0;background:#faf6fa;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:37px}
+.medname{font-weight:750;font-size:17px;overflow-wrap:anywhere}
+.stock{margin-top:12px;background:#faf6fa;border-radius:12px;padding:10px}
+.pills{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.pill{width:17px;height:10px;border-radius:8px;border:1px solid #0002}
+.pill.round{width:13px;height:13px;border-radius:50%}
+.pill.capsule{height:10px;border-radius:3px}
+.dose{display:flex;align-items:center;gap:10px}
+.doseinfo{flex:1;min-width:0}
+.dosename{font-weight:700;overflow-wrap:anywhere}
+.time{font-size:13px;color:var(--muted)}
+.done{background:#e8f5e9;color:#2f7540}
+.empty{text-align:center;padding:20px;color:var(--muted)}
+.small{font-size:12px;color:var(--muted)}
+.historyrow{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+@media(max-width:380px){.grid{grid-template-columns:1fr}.summary{gap:8px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="logo">💊</div>
+<div><h1>Med Routine</h1><p>Your daily health habits, made simpler.</p></div>
+</header>
+
+<div class="summary">
+<div><p id="today"></p><div class="big" id="progress">0 of 0 taken</div><p>One dose at a time 💗</p></div>
+<div style="font-size:35px">🌷</div>
+</div>
+
+<section>
+<h2>Today's routine</h2>
+<div id="doses"></div>
+</section>
+
+<section>
+<h2>My medications</h2>
+<div id="meds"></div>
+</section>
+
+<section>
+<h2 id="formtitle">＋ Add a medication</h2>
+<form id="medform">
+<input type="hidden" id="editid">
+<label for="name">Medication or vitamin name</label>
+<input id="name" required placeholder="e.g. Vitamin D">
+<div class="grid">
+<div><label for="kind">Container</label>
+<select id="kind"><option value="bottle">Bottle</option><option value="blister">Blister sheet</option></select></div>
+<div><label for="shape">Pill shape</label>
+<select id="shape"><option value="round">Round</option><option value="oval">Oval</option><option value="capsule">Capsule</option></select></div>
+</div>
+<div class="grid">
+<div><label for="colour">Pill colour</label><input id="colour" type="color" value="#dba7ca"></div>
+<div><label for="stock">Current stock (tablets)</label><input id="stock" type="number" min="0" step="1" value="30" required></div>
+</div>
+<div class="grid">
+<div><label for="dose">Tablets per dose</label><input id="dose" type="number" min="1" step="1" value="1" required></div>
+<div><label for="low">Low-stock alert at</label><input id="low" type="number" min="0" step="1" value="7" required></div>
+</div>
+<label for="times">Daily dose times (24-hour clock, comma-separated)</label>
+<input id="times" value="08:00,20:00" placeholder="08:00, 13:00, 20:00" required>
+<p>Example: 08:00, 13:00, 20:00. Enter each time only once.</p>
+<button class="primary" type="submit" id="savebtn">Save medication</button>
+<button class="secondary" type="button" id="cancel" style="display:none;width:100%;margin-top:8px">Cancel editing</button>
+</form>
+</section>
+
+<section>
+<h2>Recent dose history</h2>
+<div id="history"><p>No doses recorded yet.</p></div>
+<button class="secondary" id="export" style="width:100%;margin-top:10px">Export a backup</button>
+<p class="small">Your records are stored in this browser on this device. Export a backup regularly.</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const KEY='med-routine-v1';
+let data;
+try{data=JSON.parse(localStorage.getItem(KEY))||{meds:[],logs:[]}}
+catch(e){data={meds:[],logs:[]}}
+if(!Array.isArray(data.meds))data.meds=[];
+if(!Array.isArray(data.logs))data.logs=[];
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const dateKey=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+function timesOf(m){return m.times.split(',').map(t=>t.trim()).filter(Boolean).sort()}
+function taken(m,t){return data.logs.some(l=>l.date===dateKey()&&l.med===m.id&&l.time===t)}
+function visual(m){
+if(m.kind==='bottle')return '🧴';
+let n=Math.min(m.stock,20),s='';
+for(let i=0;i<n;i++)s+='<span class="pill '+(m.shape==='round'?'round':m.shape==='capsule'?'capsule':'')+'" style="background:'+m.colour+'"></span>';
+return '<div style="width:100%;padding:5px">'+s+(m.stock>20?'<div class="small">+'+(m.stock-20)+' more</div>':'')+'</div>';
+}
+function render(){
+$('today').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+let tasks=data.meds.flatMap(m=>timesOf(m).map(t=>({m,t})));
+let done=tasks.filter(x=>taken(x.m,x.t)).length;
+$('progress').textContent=done+' of '+tasks.length+' taken';
+$('doses').innerHTML=tasks.length?tasks.map(({m,t})=>{
+let yes=taken(m,t);
+return '<div class="dose"><div class="doseinfo"><div class="dosename">'+esc(m.name)+'</div><div class="time">'+esc(t)+' · '+m.dose+' tablet(s)</div></div><button class="'+(yes?'done':'secondary')+'" data-action="'+(yes?'undo':'take')+'" data-med="'+m.id+'" data-time="'+esc(t)+'">'+(yes?'✓ Taken':'Tick off')+'</button></div>';
+}).join(''):'<div class="empty">Your routine is waiting for its first medication 🌸</div>';
+$('meds').innerHTML=data.meds.length?data.meds.map(m=>{
+let low=m.stock<=m.low;
+return '<div class="med"><div class="medhead"><div class="art">'+visual(m)+'</div><div style="flex:1;min-width:0"><div class="medname">'+esc(m.name)+'</div><p>'+m.dose+' tablet(s) per dose</p><p>'+esc(timesOf(m).join(' · '))+'</p></div></div><div class="stock"><b>'+m.stock+' tablets left</b><p>'+(low?'⚠️ Low stock — consider arranging a refill.':'Stock level looks okay.')+'</p></div><div style="display:flex;gap:8px;margin-top:10px"><button class="secondary" data-action="edit" data-med="'+m.id+'">Edit</button><button class="danger" data-action="delete" data-med="'+m.id+'">Delete</button></div></div>';
+}).join(''):'<div class="empty">No medications added yet.</div>';
+let logs=data.logs.slice().reverse().slice(0,10);
+$('history').innerHTML=logs.length?logs.map(l=>{
+let m=data.meds.find(x=>x.id===l.med);
+return '<div class="historyrow">'+(l.action==='undo'?'↩️ Undid':'✓ Took')+' '+esc(l.name||m?.name||'Medication')+' · '+esc(l.date)+' '+esc(l.time)+'</div>';
+}).join(''):'<p>No doses recorded yet.</p>';
+}
+function resetForm(){
+$('medform').reset();$('editid').value='';$('colour').value='#dba7ca';$('stock').value=30;$('dose').value=1;$('low').value=7;$('times').value='08:00,20:00';$('formtitle').textContent='＋ Add a medication';$('savebtn').textContent='Save medication';$('cancel').style.display='none';
+}
+$('medform').addEventListener('submit',e=>{
+e.preventDefault();
+let ts=$('times').value.split(',').map(t=>t.trim());
+if(ts.some(t=>!/^([01]\d|2[0-3]):[0-5]\d$/.test(t))){alert('Please enter times like 08:00 or 20:00, separated by commas.');return}
+if(new Set(ts).size!==ts.length){alert('Please remove duplicate times.');return}
+let id=$('editid').value;
+let old=data.meds.find(m=>m.id===id);
+let m={id:id||uid(),name:$('name').value.trim(),kind:$('kind').value,shape:$('shape').value,colour:$('colour').value,stock:Number($('stock').value),dose:Number($('dose').value),low:Number($('low').value),times:ts.join(',')};
+if(!m.name||m.stock<0||m.dose<1||m.low<0){alert('Please check your medication details.');return}
+if(old)data.meds=data.meds.map(x=>x.id===id?m:x);else data.meds.push(m);
+save();resetForm();render();
+});
+$('cancel').onclick=resetForm;
+document.addEventListener('click',e=>{
+let b=e.target.closest('button[data-action]');if(!b)return;
+let m=data.meds.find(x=>x.id===b.dataset.med);if(!m)return;
+let action=b.dataset.action,t=b.dataset.time;
+if(action==='edit'){
+$('editid').value=m.id;$('name').value=m.name;$('kind').value=m.kind;$('shape').value=m.shape;$('colour').value=m.colour;$('stock').value=m.stock;$('dose').value=m.dose;$('low').value=m.low;$('times').value=m.times;
+$('formtitle').textContent='Edit medication';$('savebtn').textContent='Save changes';$('cancel').style.display='block';$('name').focus();window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+}
+if(action==='take'){
+if(taken(m,t))return;
+if(m.stock<m.dose){if(!confirm('Stock is lower than this dose. Record the dose anyway? Please check your actual supply.'))return}
+m.stock=Math.max(0,m.stock-m.dose);
+data.logs.push({date:dateKey(),time:t,med:m.id,name:m.name,action:'take',dose:m.dose,stockBefore:m.stock+m.dose});
+save();render();
+}
+if(action==='undo'){
+let i=data.logs.findIndex(l=>l.date===dateKey()&&l.med===m.id&&l.time===t);
+if(i>=0){let l=data.logs[i];m.stock+=l.dose||m.dose;data.logs.splice(i,1);save();render()}
+}
+if(action==='delete'){
+if(confirm('Delete '+m.name+' and its dose history? Export a backup first if you want to keep your records.')){
+data.meds=data.meds.filter(x=>x.id!==m.id);data.logs=data.logs.filter(x=>x.med!==m.id);save();render()
+}
+}
+});
+$('export').onclick=()=>{
+let blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='med-routine-backup.json';a.click();URL.revokeObjectURL(a.href);
+};
+render();
+</script>
+</body>
+</html>
